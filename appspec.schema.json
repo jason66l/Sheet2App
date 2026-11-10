@@ -1,0 +1,814 @@
+{
+  "$defs": {
+    "ApprovalQueueView": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "approval_queue",
+          "default": "approval_queue",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "entity": {
+          "maxLength": 64,
+          "pattern": "^[A-Z][A-Za-z0-9]*$",
+          "title": "Entity",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "entity"
+      ],
+      "title": "ApprovalQueueView",
+      "type": "object"
+    },
+    "ApprovalRule": {
+      "additionalProperties": false,
+      "description": "v1's only rule type: 'N approvals over $X', no self-approval.",
+      "properties": {
+        "name": {
+          "const": "approval_policy",
+          "default": "approval_policy",
+          "title": "Name",
+          "type": "string"
+        },
+        "entity": {
+          "maxLength": 64,
+          "pattern": "^[A-Z][A-Za-z0-9]*$",
+          "title": "Entity",
+          "type": "string"
+        },
+        "amount_field": {
+          "default": "amount",
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Amount Field",
+          "type": "string"
+        },
+        "threshold": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Strictly greater than this amount needs approvals_over",
+          "title": "Threshold"
+        },
+        "approvals_over": {
+          "maximum": 5,
+          "minimum": 1,
+          "title": "Approvals Over",
+          "type": "integer"
+        },
+        "approvals_default": {
+          "default": 1,
+          "maximum": 5,
+          "minimum": 1,
+          "title": "Approvals Default",
+          "type": "integer"
+        },
+        "approver_roles": {
+          "default": [
+            "approver",
+            "admin"
+          ],
+          "items": {
+            "$ref": "#/$defs/Role"
+          },
+          "title": "Approver Roles",
+          "type": "array"
+        },
+        "exclude_submitter": {
+          "const": true,
+          "default": true,
+          "title": "Exclude Submitter",
+          "type": "boolean"
+        },
+        "distinct_approvers": {
+          "const": true,
+          "default": true,
+          "title": "Distinct Approvers",
+          "type": "boolean"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Provenance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "entity",
+        "threshold",
+        "approvals_over"
+      ],
+      "title": "ApprovalRule",
+      "type": "object"
+    },
+    "BudgetTableView": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "budget_table",
+          "default": "budget_table",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "entity": {
+          "maxLength": 64,
+          "pattern": "^[A-Z][A-Za-z0-9]*$",
+          "title": "Entity",
+          "type": "string"
+        },
+        "label_field": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Label Field",
+          "type": "string"
+        },
+        "budget_field": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Budget Field",
+          "type": "string"
+        },
+        "approved_field": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Approved Field",
+          "type": "string"
+        },
+        "pending_field": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Pending Field",
+          "type": "string"
+        },
+        "remaining_field": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Remaining Field",
+          "type": "string"
+        },
+        "warn_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": "0.85",
+          "title": "Warn At"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "entity",
+        "label_field",
+        "budget_field",
+        "approved_field",
+        "pending_field",
+        "remaining_field"
+      ],
+      "title": "BudgetTableView",
+      "type": "object"
+    },
+    "Computed": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/ComputedType"
+        },
+        "expr": {
+          "description": "\nExpression language (v1)\n  literals      123, 0.9, \"approved\"\n  fields        budget                      (field on the same record)\n  arithmetic    + - * /  and parentheses\n  comparison    == != < <= > >=   combined with and / or / not\n  functions     round(x, 2), if(cond, a, b)\n  aggregates    sum(Entity.field where <cond>), count(Entity where <cond>)\n                inside <cond>: bare names refer to the child record,\n                `this` is the current record, `state` is the workflow state\nExamples\n  budget - approved - pending\n  sum(Expense.amount where budget_line == this and state == \"approved\")\n  if(budget == 0, 0, (approved + pending) / budget)\n",
+          "title": "Expr",
+          "type": "string"
+        },
+        "excel_formula": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Original column template, e.g. '=B{r}-C{r}-D{r}'",
+          "title": "Excel Formula"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Provenance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "name",
+        "label",
+        "type",
+        "expr"
+      ],
+      "title": "Computed",
+      "type": "object"
+    },
+    "ComputedType": {
+      "enum": [
+        "number",
+        "money",
+        "percent"
+      ],
+      "title": "ComputedType",
+      "type": "string"
+    },
+    "Entity": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 64,
+          "pattern": "^[A-Z][A-Za-z0-9]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "fields": {
+          "items": {
+            "$ref": "#/$defs/Field"
+          },
+          "title": "Fields",
+          "type": "array"
+        },
+        "computed": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Computed"
+          },
+          "title": "Computed",
+          "type": "array"
+        },
+        "display_field": {
+          "description": "Field used as the row's name in dropdowns",
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Display Field",
+          "type": "string"
+        },
+        "workflow": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name of a workflow in spec.workflows",
+          "title": "Workflow"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Provenance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "name",
+        "label",
+        "fields",
+        "display_field"
+      ],
+      "title": "Entity",
+      "type": "object"
+    },
+    "Field": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/FieldType"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "options": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "enum only",
+          "title": "Options"
+        },
+        "ref_entity": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[A-Z][A-Za-z0-9]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ref only",
+          "title": "Ref Entity"
+        },
+        "min": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "number/money only",
+          "title": "Min"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Provenance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "name",
+        "label",
+        "type"
+      ],
+      "title": "Field",
+      "type": "object"
+    },
+    "FieldType": {
+      "enum": [
+        "text",
+        "number",
+        "money",
+        "date",
+        "enum",
+        "ref",
+        "file",
+        "user"
+      ],
+      "title": "FieldType",
+      "type": "string"
+    },
+    "FormView": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "form",
+          "default": "form",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "entity": {
+          "maxLength": 64,
+          "pattern": "^[A-Z][A-Za-z0-9]*$",
+          "title": "Entity",
+          "type": "string"
+        },
+        "fields": {
+          "items": {
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "title": "Fields",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "entity",
+        "fields"
+      ],
+      "title": "FormView",
+      "type": "object"
+    },
+    "KpiTile": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "expr": {
+          "description": "App-level expression, e.g. sum(BudgetLine.budget)",
+          "title": "Expr",
+          "type": "string"
+        },
+        "format": {
+          "$ref": "#/$defs/ComputedType",
+          "default": "money"
+        }
+      },
+      "required": [
+        "label",
+        "expr"
+      ],
+      "title": "KpiTile",
+      "type": "object"
+    },
+    "KpiView": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "kpi",
+          "default": "kpi",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "tiles": {
+          "items": {
+            "$ref": "#/$defs/KpiTile"
+          },
+          "title": "Tiles",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "tiles"
+      ],
+      "title": "KpiView",
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "description": "Where in the workbook something came from. Shown on the review screen.",
+      "properties": {
+        "sheet": {
+          "title": "Sheet",
+          "type": "string"
+        },
+        "range": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A1 range, e.g. 'A3:H9' or 'F4:F9'",
+          "title": "Range"
+        },
+        "confidence": {
+          "default": 1.0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "sheet"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "RecordTableView": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "record_table",
+          "default": "record_table",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "entity": {
+          "maxLength": 64,
+          "pattern": "^[A-Z][A-Za-z0-9]*$",
+          "title": "Entity",
+          "type": "string"
+        },
+        "columns": {
+          "items": {
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "title": "Columns",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "entity",
+        "columns"
+      ],
+      "title": "RecordTableView",
+      "type": "object"
+    },
+    "Role": {
+      "enum": [
+        "admin",
+        "approver",
+        "submitter"
+      ],
+      "title": "Role",
+      "type": "string"
+    },
+    "Transition": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "submit",
+            "approve",
+            "reject"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "from_state": {
+          "title": "From State",
+          "type": "string"
+        },
+        "to_state": {
+          "title": "To State",
+          "type": "string"
+        },
+        "roles": {
+          "items": {
+            "$ref": "#/$defs/Role"
+          },
+          "title": "Roles",
+          "type": "array"
+        },
+        "guard": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name of a rule that must pass, e.g. 'approval_policy'",
+          "title": "Guard"
+        }
+      },
+      "required": [
+        "action",
+        "from_state",
+        "to_state",
+        "roles"
+      ],
+      "title": "Transition",
+      "type": "object"
+    },
+    "Workflow": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "states": {
+          "items": {
+            "type": "string"
+          },
+          "title": "States",
+          "type": "array"
+        },
+        "initial": {
+          "title": "Initial",
+          "type": "string"
+        },
+        "transitions": {
+          "items": {
+            "$ref": "#/$defs/Transition"
+          },
+          "title": "Transitions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "states",
+        "initial",
+        "transitions"
+      ],
+      "title": "Workflow",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "spec_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Spec Version",
+      "type": "string"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Description"
+    },
+    "entities": {
+      "items": {
+        "$ref": "#/$defs/Entity"
+      },
+      "title": "Entities",
+      "type": "array"
+    },
+    "workflows": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Workflow"
+      },
+      "title": "Workflows",
+      "type": "array"
+    },
+    "approval_rule": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ApprovalRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "views": {
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "approval_queue": "#/$defs/ApprovalQueueView",
+            "budget_table": "#/$defs/BudgetTableView",
+            "form": "#/$defs/FormView",
+            "kpi": "#/$defs/KpiView",
+            "record_table": "#/$defs/RecordTableView"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/KpiView"
+          },
+          {
+            "$ref": "#/$defs/BudgetTableView"
+          },
+          {
+            "$ref": "#/$defs/RecordTableView"
+          },
+          {
+            "$ref": "#/$defs/FormView"
+          },
+          {
+            "$ref": "#/$defs/ApprovalQueueView"
+          }
+        ]
+      },
+      "title": "Views",
+      "type": "array"
+    }
+  },
+  "required": [
+    "name",
+    "entities",
+    "views"
+  ],
+  "title": "AppSpec",
+  "type": "object"
+}
