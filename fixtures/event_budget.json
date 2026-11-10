@@ -1,0 +1,107 @@
+{
+  "spec_version": "1.0",
+  "name": "Spring Showcase Budget",
+  "description": "Westview Robotics Club event budget. Members submit expenses against budget lines; purchases over $200 need two approvals.",
+  "entities": [
+    {
+      "name": "BudgetLine",
+      "label": "Budget lines",
+      "display_field": "line",
+      "source": {"sheet": "Budget", "range": "A3:H9", "confidence": 0.95},
+      "fields": [
+        {"name": "line", "label": "Line", "type": "text", "required": true,
+         "source": {"sheet": "Budget", "range": "A4:A9", "confidence": 0.95}},
+        {"name": "budget", "label": "Budget", "type": "money", "required": true, "min": "0",
+         "source": {"sheet": "Budget", "range": "B4:B9", "confidence": 0.95}},
+        {"name": "notes", "label": "Notes", "type": "text",
+         "source": {"sheet": "Budget", "range": "H4:H9", "confidence": 0.8}}
+      ],
+      "computed": [
+        {"name": "approved", "label": "Approved", "type": "money",
+         "expr": "sum(Expense.amount where budget_line == this and state == \"approved\")",
+         "excel_formula": "=SUMIFS(Expenses!$E:$E,Expenses!$C:$C,$A{r},Expenses!$G:$G,\"Approved\")",
+         "source": {"sheet": "Budget", "range": "C4:C9", "confidence": 0.9}},
+        {"name": "pending", "label": "Pending", "type": "money",
+         "expr": "sum(Expense.amount where budget_line == this and state == \"submitted\")",
+         "excel_formula": "=SUMIFS(Expenses!$E:$E,Expenses!$C:$C,$A{r},Expenses!$G:$G,\"Pending\")",
+         "source": {"sheet": "Budget", "range": "D4:D9", "confidence": 0.9}},
+        {"name": "pct_used", "label": "% used", "type": "percent",
+         "expr": "if(budget == 0, 0, (approved + pending) / budget)",
+         "excel_formula": "=IF(B{r}=0,0,(C{r}+D{r})/B{r})",
+         "source": {"sheet": "Budget", "range": "E4:E9", "confidence": 0.9}},
+        {"name": "remaining", "label": "Remaining", "type": "money",
+         "expr": "budget - approved - pending",
+         "excel_formula": "=B{r}-C{r}-D{r}",
+         "source": {"sheet": "Budget", "range": "F4:F9", "confidence": 0.95}}
+      ]
+    },
+    {
+      "name": "Expense",
+      "label": "Expenses",
+      "display_field": "description",
+      "workflow": "reimbursement",
+      "source": {"sheet": "Expenses", "range": "A1:H12", "confidence": 0.95},
+      "fields": [
+        {"name": "date", "label": "Date", "type": "date", "required": true,
+         "source": {"sheet": "Expenses", "range": "A2:A12", "confidence": 0.95}},
+        {"name": "description", "label": "Description", "type": "text", "required": true,
+         "source": {"sheet": "Expenses", "range": "B2:B12", "confidence": 0.95}},
+        {"name": "budget_line", "label": "Budget line", "type": "ref", "ref_entity": "BudgetLine", "required": true,
+         "source": {"sheet": "Expenses", "range": "C2:C12", "confidence": 0.85,
+                    "note": "Values match Budget!A4:A9; used as SUMIFS criteria"}},
+        {"name": "submitted_by", "label": "Submitted by", "type": "user", "required": true,
+         "source": {"sheet": "Expenses", "range": "D2:D12", "confidence": 0.85,
+                    "note": "Names match the Members sheet"}},
+        {"name": "amount", "label": "Amount", "type": "money", "required": true, "min": "0.01",
+         "source": {"sheet": "Expenses", "range": "E2:E12", "confidence": 0.95}},
+        {"name": "receipt", "label": "Receipt", "type": "file",
+         "source": {"sheet": "Expenses", "range": "F2:F12", "confidence": 0.8}}
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "name": "reimbursement",
+      "states": ["draft", "submitted", "approved", "rejected"],
+      "initial": "draft",
+      "transitions": [
+        {"action": "submit", "from_state": "draft", "to_state": "submitted",
+         "roles": ["submitter", "approver", "admin"]},
+        {"action": "approve", "from_state": "submitted", "to_state": "approved",
+         "roles": ["approver", "admin"], "guard": "approval_policy"},
+        {"action": "reject", "from_state": "submitted", "to_state": "rejected",
+         "roles": ["approver", "admin"]}
+      ]
+    }
+  ],
+  "approval_rule": {
+    "name": "approval_policy",
+    "entity": "Expense",
+    "amount_field": "amount",
+    "threshold": "200",
+    "approvals_over": 2,
+    "approvals_default": 1,
+    "approver_roles": ["approver", "admin"],
+    "exclude_submitter": true,
+    "distinct_approvers": true,
+    "source": {"sheet": "Budget", "range": "A12", "confidence": 0.8,
+               "note": "Rule: purchases over $200 need 2 signatures (president + treasurer). Specific roles not modeled in v1."}
+  },
+  "views": [
+    {"type": "kpi", "id": "summary", "title": "Summary", "tiles": [
+      {"label": "Total budget", "expr": "sum(BudgetLine.budget)"},
+      {"label": "Approved spending", "expr": "sum(Expense.amount where state == \"approved\")"},
+      {"label": "Waiting for approval", "expr": "sum(Expense.amount where state == \"submitted\")"},
+      {"label": "Left after pending", "expr": "sum(BudgetLine.remaining)"}
+    ]},
+    {"type": "budget_table", "id": "budget", "title": "Budget vs. spending by line",
+     "entity": "BudgetLine", "label_field": "line", "budget_field": "budget",
+     "approved_field": "approved", "pending_field": "pending", "remaining_field": "remaining",
+     "warn_at": "0.85"},
+    {"type": "approval_queue", "id": "approvals", "title": "Needs your approval", "entity": "Expense"},
+    {"type": "record_table", "id": "expenses", "title": "Expenses", "entity": "Expense",
+     "columns": ["date", "description", "budget_line", "submitted_by", "amount", "receipt"]},
+    {"type": "form", "id": "submit_expense", "title": "Submit expense", "entity": "Expense",
+     "fields": ["date", "description", "budget_line", "amount", "receipt"]}
+  ]
+}

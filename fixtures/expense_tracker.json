@@ -1,0 +1,81 @@
+{
+  "spec_version": "1.0",
+  "name": "Team Expense Tracker",
+  "description": "Small-team expense log with monthly category limits. Expenses over $500 need two approvals.",
+  "entities": [
+    {
+      "name": "Category",
+      "label": "Categories",
+      "display_field": "category",
+      "source": {"sheet": "Limits", "range": "A1:B6", "confidence": 0.9},
+      "fields": [
+        {"name": "category", "label": "Category", "type": "text", "required": true},
+        {"name": "monthly_limit", "label": "Monthly limit", "type": "money", "required": true, "min": "0"}
+      ],
+      "computed": [
+        {"name": "spent", "label": "Spent", "type": "money",
+         "expr": "sum(Expense.amount where category == this and state == \"approved\")",
+         "excel_formula": "=SUMIFS(Log!$E:$E,Log!$D:$D,$A{r},Log!$G:$G,\"Approved\")"},
+        {"name": "pending", "label": "Pending", "type": "money",
+         "expr": "sum(Expense.amount where category == this and state == \"submitted\")"},
+        {"name": "left", "label": "Left", "type": "money",
+         "expr": "monthly_limit - spent - pending",
+         "excel_formula": "=B{r}-C{r}"}
+      ]
+    },
+    {
+      "name": "Expense",
+      "label": "Expenses",
+      "display_field": "vendor",
+      "workflow": "reimbursement",
+      "source": {"sheet": "Log", "range": "A1:G40", "confidence": 0.9},
+      "fields": [
+        {"name": "date", "label": "Date", "type": "date", "required": true},
+        {"name": "employee", "label": "Employee", "type": "user", "required": true},
+        {"name": "vendor", "label": "Vendor", "type": "text", "required": true},
+        {"name": "category", "label": "Category", "type": "ref", "ref_entity": "Category", "required": true},
+        {"name": "amount", "label": "Amount", "type": "money", "required": true, "min": "0.01"},
+        {"name": "payment_method", "label": "Paid with", "type": "enum",
+         "options": ["Company card", "Personal card", "Cash"], "required": true,
+         "source": {"sheet": "Log", "range": "F2:F40", "confidence": 0.9, "note": "Data validation list"}},
+        {"name": "receipt", "label": "Receipt", "type": "file"}
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "name": "reimbursement",
+      "states": ["draft", "submitted", "approved", "rejected"],
+      "initial": "draft",
+      "transitions": [
+        {"action": "submit", "from_state": "draft", "to_state": "submitted",
+         "roles": ["submitter", "approver", "admin"]},
+        {"action": "approve", "from_state": "submitted", "to_state": "approved",
+         "roles": ["approver", "admin"], "guard": "approval_policy"},
+        {"action": "reject", "from_state": "submitted", "to_state": "rejected",
+         "roles": ["approver", "admin"]}
+      ]
+    }
+  ],
+  "approval_rule": {
+    "entity": "Expense",
+    "threshold": "500",
+    "approvals_over": 2,
+    "approvals_default": 1
+  },
+  "views": [
+    {"type": "kpi", "id": "summary", "title": "This month", "tiles": [
+      {"label": "Total limits", "expr": "sum(Category.monthly_limit)"},
+      {"label": "Approved", "expr": "sum(Expense.amount where state == \"approved\")"},
+      {"label": "Pending", "expr": "count(Expense where state == \"submitted\")", "format": "number"}
+    ]},
+    {"type": "budget_table", "id": "limits", "title": "Spending by category",
+     "entity": "Category", "label_field": "category", "budget_field": "monthly_limit",
+     "approved_field": "spent", "pending_field": "pending", "remaining_field": "left"},
+    {"type": "approval_queue", "id": "approvals", "title": "Needs your approval", "entity": "Expense"},
+    {"type": "record_table", "id": "log", "title": "Expense log", "entity": "Expense",
+     "columns": ["date", "employee", "vendor", "category", "amount", "payment_method"]},
+    {"type": "form", "id": "new_expense", "title": "New expense", "entity": "Expense",
+     "fields": ["date", "vendor", "category", "amount", "payment_method", "receipt"]}
+  ]
+}
