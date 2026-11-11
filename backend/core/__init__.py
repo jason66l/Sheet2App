@@ -69,8 +69,22 @@ def run_import(file_bytes: bytes) -> ImportResult:
 
 
 def compute(spec: AppSpec, records: list[Record]) -> ComputeResult:
-    """Real version: weeks 6-8. Stub returns no computed values."""
-    return ComputeResult(per_record={r.id: {} for r in records}, app={})
+    """Every computed field per record, and every KPI tile, from the current records."""
+    from backend.core.engine.evaluate import recompute
+
+    rows: dict[str, list[dict]] = {}
+    for r in records:
+        rows.setdefault(r.entity, []).append({**r.data, "__state__": r.state, "__id__": r.id})
+    kpis, _errors = recompute(spec, rows)
+    per_record: dict[str, dict] = {}
+    for ent in spec.entities:
+        names = [c.name for c in ent.computed]
+        for row in rows.get(ent.name, []):
+            per_record[row["__id__"]] = {n: row.get(n) for n in names}
+    for r in records:
+        per_record.setdefault(r.id, {})
+    # Tiles are keyed "view_id/label" so two KPI rows can reuse a label.
+    return ComputeResult(per_record=per_record, app=kpis)
 
 
 def apply_action(spec: AppSpec, record: Record, user: User, action: str,

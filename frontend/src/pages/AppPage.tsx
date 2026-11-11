@@ -45,6 +45,10 @@ export default function AppPage({ appId, myId }: Props) {
       await api(`/records/${id}/reject`, { method: 'POST' });
       await load();
     },
+    addFunds: async (id, amount, note) => {
+      await api(`/records/${id}/funds`, { method: 'POST', body: JSON.stringify({ amount, note }) });
+      await load();
+    },
     create: async (entity, data) => {
       await api(`/apps/${appId}/records`, { method: 'POST', body: JSON.stringify({ entity, data }) });
       await load();

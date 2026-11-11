@@ -651,3 +651,77 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ---------------------------------------------------- admin: budget lines and funds */
+
+.s2a .gen-admin-tools {
+  display: inline-flex;
+  gap: 8px;
+  margin-left: 8px;
+}
+
+.s2a .gen-admin-form {
+  border-bottom: 1px solid var(--border);
+  background: #fbfbf9;
+}
+
+.s2a .gen-admin-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.s2a .gen-field-wide {
+  grid-column: span 2;
+}
+
+.s2a .gen-admin-buttons {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.s2a .gen-funds {
+  border-top: 1px solid var(--border);
+  padding: 12px 20px;
+  font-size: 13px;
+}
+
+.s2a .gen-funds summary {
+  cursor: pointer;
+  color: var(--muted-strong);
+}
+
+.s2a .gen-funds ul {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.s2a .gen-funds li {
+  display: grid;
+  grid-template-columns: 110px 1fr 1.4fr 1.2fr;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.s2a .gen-funds-pos {
+  color: #1d6b43;
+}
+
+.s2a .gen-funds-neg {
+  color: #a23b2c;
+}
+
+@media (max-width: 700px) {
+  .s2a .gen-field-wide {
+    grid-column: auto;
+  }
+  .s2a .gen-funds li {
+    grid-template-columns: 1fr 1fr;
+  }
+  .s2a .gen-legend {
+    flex-wrap: wrap;
+  }
+}

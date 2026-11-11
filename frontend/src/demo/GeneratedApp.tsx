@@ -2,7 +2,7 @@ import '../landing/landing.css';
 import './demo.css';
 import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import type {
-  ApprovalQueueView, AppSpec, BudgetTableView, DemoResponse, Entity, FormView, KpiView, RecordTableView, Role, Row, View,
+  ApprovalQueueView, AppSpec, BudgetTableView, DemoResponse, Entity, FormView, FundEntry, KpiView, RecordTableView, Role, Row, View,
 } from './types';
 import { STATE_LABEL, cell, column, money, num, percent } from './format';
 
@@ -13,6 +13,8 @@ export type AppActions = {
   approve: (recordId: string) => Promise<void>;
   reject: (recordId: string) => Promise<void>;
   create: (entity: string, data: Record<string, string>) => Promise<void>;
+  /** Admin only: add money to a budget line (negative fixes a mistake). */
+  addFunds: (recordId: string, amount: string, note: string) => Promise<void>;
 };
 
 type Props = {
@@ -183,10 +185,17 @@ function Kpis({ view, kpis }: { view: KpiView; kpis: Record<string, string | nul
 
 /* ------------------------------------------------------------- budget table */
 
-function BudgetTable({ view, rows, entity }: BlockProps & { view: BudgetTableView }) {
+function BudgetTable({ view, rows, entity, role, actions, run }: BlockProps & { view: BudgetTableView }) {
   const ent = entity(view.entity);
+  const [panel, setPanel] = useState<'line' | 'funds' | null>(null);
   if (!ent) return null;
   const warnAt = num(view.warn_at);
+  const canManage = !!actions && role === 'admin';
+  const lines = rows[view.entity] ?? [];
+  const history = lines
+    .flatMap((r) => (r.__funds__ ?? []).map((f) => ({ ...f, line: String(r[view.label_field] ?? '') })))
+    .sort((a, b) => b.at.localeCompare(a.at));
+  const toggle = (p: 'line' | 'funds') => setPanel((cur) => (cur === p ? null : p));
   return (
     <section className="gen-block gen-card gen-span-12" aria-labelledby={`${view.id}-h`}>
       <div className="gen-card-head">
@@ -194,8 +203,26 @@ function BudgetTable({ view, rows, entity }: BlockProps & { view: BudgetTableVie
         <div className="gen-legend">
           <span><i className="swatch swatch-approved" /> Approved</span>
           <span><i className="swatch swatch-pending" /> Pending</span>
+          {canManage && (
+            <span className="gen-admin-tools">
+              <button type="button" className="btn btn-secondary btn-sm" aria-expanded={panel === 'funds'} onClick={() => toggle('funds')}>
+                Add funds
+              </button>
+              <button type="button" className="btn btn-secondary btn-sm" aria-expanded={panel === 'line'} onClick={() => toggle('line')}>
+                Add {ent.label.toLowerCase().replace(/s$/, '')}
+              </button>
+            </span>
+          )}
         </div>
       </div>
+      {canManage && panel === 'line' && (
+        <NewLineForm ent={ent} view={view} onCancel={() => setPanel(null)}
+          onSave={(values) => run(async () => { await actions!.create(view.entity, values); setPanel(null); })} />
+      )}
+      {canManage && panel === 'funds' && (
+        <FundsForm view={view} lines={lines} onCancel={() => setPanel(null)}
+          onSave={(id, amount, note) => run(async () => { await actions!.addFunds(id, amount, note); setPanel(null); })} />
+      )}
       <div className="gen-scroll">
         <table className="gen-table gen-budget">
           <thead>
@@ -236,7 +263,125 @@ function BudgetTable({ view, rows, entity }: BlockProps & { view: BudgetTableVie
           </tbody>
         </table>
       </div>
+      {history.length > 0 && <FundingHistory entries={history} />}
     </section>
+  );
+}
+
+/** Admin form: a new budget line. Shows the table's plain fields (name, amount, notes...). */
+function NewLineForm({ ent, view, onSave, onCancel }: {
+  ent: Entity; view: BudgetTableView; onSave: (values: Record<string, string>) => Promise<void>; onCancel: () => void;
+}) {
+  const [values, setValues] = useState<Record<string, string>>({});
+  const fields = ent.fields.filter((f) => ['text', 'number', 'money', 'date', 'enum'].includes(f.type));
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    void onSave(values);
+  };
+  return (
+    <form className="gen-form gen-admin-form" onSubmit={submit}>
+      <div className="gen-admin-fields">
+        {fields.map((f) => {
+          const id = `${view.id}-new-${f.name}`;
+          const v = values[f.name] ?? '';
+          const set = (x: string) => setValues((s) => ({ ...s, [f.name]: x }));
+          const required = f.required || f.name === view.label_field || f.name === view.budget_field;
+          return (
+            <div key={f.name} className="gen-field">
+              <label htmlFor={id}>{f.label}{required && <span aria-hidden="true"> *</span>}</label>
+              {f.type === 'enum' && f.options ? (
+                <select id={id} value={v} onChange={(e) => set(e.target.value)} required={required}>
+                  <option value="">Choose…</option>
+                  {f.options.map((o) => <option key={o}>{o}</option>)}
+                </select>
+              ) : (
+                <input
+                  id={id}
+                  type={f.type === 'date' ? 'date' : f.type === 'money' || f.type === 'number' ? 'number' : 'text'}
+                  step={f.type === 'money' ? '0.01' : undefined}
+                  min={f.type === 'money' ? '0' : undefined}
+                  value={v}
+                  onChange={(e) => set(e.target.value)}
+                  required={required}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="gen-form-foot">
+        <span className="muted">Members can submit expenses against it right away.</span>
+        <span className="gen-admin-buttons">
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onCancel}>Cancel</button>
+          <button type="submit" className="btn btn-primary btn-sm">Add line</button>
+        </span>
+      </div>
+    </form>
+  );
+}
+
+/** Admin form: money in (e.g. a fundraiser) for one budget line. Every change is logged. */
+function FundsForm({ view, lines, onSave, onCancel }: {
+  view: BudgetTableView; lines: Row[]; onSave: (id: string, amount: string, note: string) => Promise<void>; onCancel: () => void;
+}) {
+  const [line, setLine] = useState(String(lines[0]?.__id__ ?? ''));
+  const [amount, setAmount] = useState('');
+  const [note, setNote] = useState('');
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    void onSave(line, amount, note);
+  };
+  return (
+    <form className="gen-form gen-admin-form" onSubmit={submit}>
+      <div className="gen-admin-fields">
+        <div className="gen-field">
+          <label htmlFor={`${view.id}-funds-line`}>Budget line *</label>
+          <select id={`${view.id}-funds-line`} value={line} onChange={(e) => setLine(e.target.value)} required>
+            {lines.map((r) => (
+              <option key={String(r.__id__)} value={String(r.__id__)}>
+                {String(r[view.label_field] ?? '')} ({money(r[view.budget_field])})
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="gen-field">
+          <label htmlFor={`${view.id}-funds-amount`}>Amount *</label>
+          <input id={`${view.id}-funds-amount`} type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+        </div>
+        <div className="gen-field gen-field-wide">
+          <label htmlFor={`${view.id}-funds-note`}>Where it came from *</label>
+          <input id={`${view.id}-funds-note`} type="text" placeholder="e.g. Bake sale, school grant" value={note} onChange={(e) => setNote(e.target.value)} required />
+        </div>
+      </div>
+      <div className="gen-form-foot">
+        <span className="muted">To fix a mistake, enter a negative amount.</span>
+        <span className="gen-admin-buttons">
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onCancel}>Cancel</button>
+          <button type="submit" className="btn btn-primary btn-sm">Add funds</button>
+        </span>
+      </div>
+    </form>
+  );
+}
+
+function FundingHistory({ entries }: { entries: (FundEntry & { line: string })[] }) {
+  const when = (at: string) => new Date(at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return (
+    <details className="gen-funds">
+      <summary>Funding history · {entries.length} {entries.length === 1 ? 'change' : 'changes'}</summary>
+      <ul>
+        {entries.map((f, i) => (
+          <li key={i}>
+            <span className={`mono ${num(f.amount) < 0 ? 'gen-funds-neg' : 'gen-funds-pos'}`}>
+              {num(f.amount) < 0 ? '−' : '+'}{money(Math.abs(num(f.amount)))}
+            </span>
+            <span>{f.line}</span>
+            <span className="muted">{f.note}</span>
+            <span className="muted">{f.by} · {when(f.at)}</span>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 

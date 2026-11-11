@@ -50,9 +50,10 @@ every calculation and approval. The LLM never computes money or decides approval
 ## How Julian wants to work (learning mode)
 Julian is a data science student who wants to learn from this project, not just finish it.
 - Before writing non-trivial code, propose a short plan and wait for a go-ahead.
-- Julian writes the core logic himself: the formula evaluator (`core/engine/evaluate.py`) and the
-  approval engine (`core/engine/workflow.py`). For those, give hints, review his code and write
-  tests, but don't write the implementation unless he asks.
+- Julian writes the approval engine (`core/engine/workflow.py`) himself. For that, give hints,
+  review his code and write tests, but don't write the implementation unless he asks.
+- The formula evaluator (`core/engine/evaluate.py`) was written by Claude with Julian's OK
+  (Nov 10). He owns it now: changes to it go through him.
 - Do boilerplate, config and setup freely.
 - After each change, explain what changed and why in plain language. Point out one concept worth
   learning when there is one (e.g. why Decimal, what a state machine is).

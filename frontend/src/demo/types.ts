@@ -21,8 +21,12 @@ export type View = KpiView | BudgetTableView | RecordTableView | FormView | Appr
 
 export type AppSpec = { name: string; description?: string | null; entities: Entity[]; approval_rule?: ApprovalRule | null; views: View[] };
 
+/** One logged change to a budget line's amount (saved apps). */
+export type FundEntry = { amount: string; note: string; by: string; at: string };
+
 export type Row = Record<string, unknown> & {
   __state__?: string;
+  __funds__?: FundEntry[];
   __approved_by__?: string[];
   /** Saved apps only: record id, whether I created it, and why I can't approve it (null = I can). */
   __id__?: string;

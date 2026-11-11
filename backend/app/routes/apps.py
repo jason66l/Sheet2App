@@ -2,7 +2,7 @@
 
 Every route checks the caller's membership and role on the server, so the rules
 hold even if someone bypasses the frontend:
-- admin: everything, plus invites
+- admin: everything, plus invites, new budget lines and adding funds
 - approver: approve/reject and submit
 - submitter: submit and view
 - nobody approves their own request, and each person approves a request once
@@ -13,6 +13,7 @@ from __future__ import annotations
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -25,7 +26,8 @@ from backend.app.auth import AuthUser, current_user
 from backend.app.db import get_db
 from backend.app.profiles import upsert_profile
 from backend.app.view_logic import (
-    CAN_APPROVE, CAN_INVITE, CAN_SUBMIT, approval_result, approve_blocker, build_rows, default_user_fields,
+    CAN_APPROVE, CAN_INVITE, CAN_MANAGE_BUDGET, add_funds, approval_result, approve_blocker,
+    budget_field, build_rows, default_user_fields, duplicate_name, roles_to_create,
 )
 from backend.core.demo_values import kpi_values
 from backend.spec.models import AppSpec
@@ -99,6 +101,10 @@ def app_view(app_id: uuid.UUID, user: AuthUser = Depends(current_user), db: Sess
                 approver_ids.get(row["__id__"], []),
             )
 
+    # Recompute every computed column and KPI tile from the current records (in place),
+    # so approving or submitting an expense changes the numbers right away.
+    kpis = kpi_values(spec, rows)
+
     source = db.scalar(select(tables.Import.file_name).where(tables.Import.app_id == app_id))
     return {
         "app_id": str(app_id),
@@ -107,7 +113,7 @@ def app_view(app_id: uuid.UUID, user: AuthUser = Depends(current_user), db: Sess
         "created_at": app_row.created_at.isoformat(),
         "spec": app_row.spec,
         "rows": rows,
-        "kpis": kpi_values(spec, rows),
+        "kpis": kpis,
     }
 
 
@@ -121,13 +127,15 @@ class NewRecord(BaseModel):
 
 @router.post("/apps/{app_id}/records", status_code=status.HTTP_201_CREATED)
 def create_record(app_id: uuid.UUID, body: NewRecord, user: AuthUser = Depends(current_user), db: Session = Depends(get_db)) -> dict:
-    require_role(db, app_id, user, CAN_SUBMIT)
+    role = require_role(db, app_id, user)
     app_row = db.get(tables.App, app_id)
     assert app_row is not None
     spec = _spec(app_row)
     ent = spec.entity(body.entity)
     if ent is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unknown table {body.entity}")
+    if role not in roles_to_create(spec, body.entity):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, f"Only admins can add {ent.label.lower()}.")
 
     allowed = {f.name for f in ent.fields}
     data = {k: v for k, v in body.data.items() if k in allowed}  # ignore anything not in the spec
@@ -135,6 +143,12 @@ def create_record(app_id: uuid.UUID, body: NewRecord, user: AuthUser = Depends(c
     if missing:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Missing: {', '.join(missing)}")
     data = default_user_fields(spec, body.entity, data, user.name or user.email or "Member")
+    existing = db.scalars(
+        select(tables.Record.data).where(tables.Record.app_id == app_id, tables.Record.entity == body.entity)
+    ).all()
+    dup = duplicate_name(spec, body.entity, data, list(existing))
+    if dup:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, dup)
 
     upsert_profile(db, user)
     rec = tables.Record(
@@ -196,6 +210,36 @@ def approve(record_id: uuid.UUID, body: Decision | None = None, user: AuthUser =
 @router.post("/records/{record_id}/reject")
 def reject(record_id: uuid.UUID, body: Decision | None = None, user: AuthUser = Depends(current_user), db: Session = Depends(get_db)) -> dict:
     return _decide(record_id, "reject", body or Decision(), user, db)
+
+
+class NewFunds(BaseModel):
+    amount: Decimal
+    note: str = ""
+
+
+@router.post("/records/{record_id}/funds")
+def record_funds(record_id: uuid.UUID, body: NewFunds, user: AuthUser = Depends(current_user), db: Session = Depends(get_db)) -> dict:
+    """Admin adds money to a budget line (or a negative amount to fix a mistake). Logged on the line."""
+    rec = db.get(tables.Record, record_id)
+    if rec is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Budget line not found")
+    require_role(db, rec.app_id, user, CAN_MANAGE_BUDGET)
+    app_row = db.get(tables.App, rec.app_id)
+    assert app_row is not None
+    field = budget_field(_spec(app_row), rec.entity)
+    if field is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Funds can only be added to budget lines.")
+    upsert_profile(db, user)
+    try:
+        rec.data = add_funds(
+            rec.data, field, body.amount, body.note, user.id, user.name or user.email or "Admin",
+            datetime.now(UTC).isoformat(),
+        )
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    rec.version += 1
+    db.commit()  # save before replying; the page reloads right after
+    return {"id": str(rec.id), field: rec.data[field]}
 
 
 # ---------------------------------------------------------------- members

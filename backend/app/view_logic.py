@@ -26,8 +26,10 @@ def build_rows(
     for r in records:
         data = dict(r["data"] or {})
         imported = data.pop("_imported_approved_by", None) or []
+        funds = data.pop("_funds", None) or []
         row = {
             **data,
+            "__funds__": funds,
             "__id__": str(r["id"]),
             "__state__": r.get("state"),
             "__approved_by__": [*imported, *approver_names.get(str(r["id"]), [])],
@@ -74,6 +76,53 @@ def default_user_fields(spec: AppSpec, entity: str, data: dict[str, Any], user_n
 CAN_APPROVE = {"admin", "approver"}
 CAN_SUBMIT = {"admin", "approver", "submitter"}
 CAN_INVITE = {"admin"}
+CAN_MANAGE_BUDGET = {"admin"}  # add budget lines, add or correct funds
+
+
+def roles_to_create(spec: AppSpec, entity: str) -> set[str]:
+    """Who may add a row to this table.
+
+    Tables with an approval workflow (expenses) take requests from every member.
+    Tables without one (budget lines) define the budget itself, so only admins add to them.
+    """
+    ent = spec.entity(entity)
+    return CAN_SUBMIT if ent is not None and ent.workflow else CAN_MANAGE_BUDGET
+
+
+def budget_field(spec: AppSpec, entity: str) -> str | None:
+    """The money field that holds a budget line's amount (from the app's budget table view)."""
+    for v in spec.views:
+        if v.type == "budget_table" and v.entity == entity:
+            return v.budget_field
+    return None
+
+
+def duplicate_name(spec: AppSpec, entity: str, data: dict[str, Any], existing: list[dict[str, Any]]) -> str | None:
+    """Expenses point at budget lines by name, so two lines can't share one."""
+    ent = spec.entity(entity)
+    if ent is None or ent.workflow:
+        return None
+    name = str(data.get(ent.display_field) or "").strip().casefold()
+    if name and any(str(r.get(ent.display_field) or "").strip().casefold() == name for r in existing):
+        return f"There is already a {ent.label.lower().rstrip('s')} called \"{data.get(ent.display_field)}\"."
+    return None
+
+
+def add_funds(data: dict[str, Any], field: str, amount: Decimal, note: str,
+              by_id: str, by_name: str, at: str) -> dict[str, Any]:
+    """Return the line's data with `amount` added to its budget and the change logged in _funds.
+
+    A negative amount corrects a mistake. The budget can't go below zero.
+    """
+    if amount == 0:
+        raise ValueError("Enter an amount other than 0.")
+    if not note.strip():
+        raise ValueError("Add a note saying where the money came from.")
+    new_budget = _amount(data, field) + amount
+    if new_budget < 0:
+        raise ValueError(f"That would make this budget negative ({new_budget:.2f}).")
+    entry = {"amount": str(amount.quantize(Decimal("0.01"))), "note": note.strip(), "by_id": by_id, "by": by_name, "at": at}
+    return {**data, field: str(new_budget.quantize(Decimal("0.01"))), "_funds": [*(data.get("_funds") or []), entry]}
 
 
 def approve_blocker(
