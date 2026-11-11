@@ -15,7 +15,11 @@ export const supabase = createClient(url || 'http://supabase-not-configured.inva
 export function signInWithGoogle() {
   return supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: window.location.origin },
+    options: {
+      redirectTo: window.location.origin,
+      // Always show Google's account picker, so switching accounts (or signing in on camera) is visible.
+      queryParams: { prompt: 'select_account' },
+    },
   });
 }
 

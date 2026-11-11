@@ -35,7 +35,7 @@ function Logo() {
         <path d="M1 8h20M8 8v13" stroke="currentColor" strokeWidth="1.5" />
         <rect x="11" y="11" width="7" height="7" rx="1.5" fill="var(--accent)" />
       </svg>
-      <span>Sheet2App</span>
+      <span>even</span>
     </a>
   );
 }

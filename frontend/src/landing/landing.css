@@ -12,7 +12,7 @@
   --accent: #2455c7;
   --accent-hover: #1d47ab;
   --accent-soft: #eef2fb;
-  --accent-pending: #a9bdec;
+  --accent-pending: #f0a050; /* orange: money waiting for approval */
   --border: #e5e7eb;
   --border-strong: #cfd3da;
   --muted: #707782;

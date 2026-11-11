@@ -49,13 +49,13 @@ export default function Dashboard({ pendingFile, onPendingUsed }: Props) {
     <div className="s2a gen">
       <header className="gen-bar">
         <div className="container gen-bar-inner">
-          <a href="#/" className="logo" aria-label="Sheet2App home">
+          <a href="#/" className="logo" aria-label="even home">
             <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
               <rect x="1" y="1" width="20" height="20" rx="5" stroke="currentColor" strokeWidth="1.5" />
               <path d="M1 8h20M8 8v13" stroke="currentColor" strokeWidth="1.5" />
               <rect x="11" y="11" width="7" height="7" rx="1.5" fill="var(--accent)" />
             </svg>
-            <span>Sheet2App</span>
+            <span>even</span>
           </a>
           <div className="gen-bar-actions">
             <span className="muted">{me?.email}</span>
