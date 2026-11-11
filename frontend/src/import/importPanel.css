@@ -1,0 +1,64 @@
+/* Uses the .s2a tokens from landing/landing.css */
+.s2a.import-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(25, 27, 32, 0.35);
+}
+
+.s2a .import-panel {
+  width: 100%;
+  max-width: 520px;
+  padding: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.s2a .import-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.s2a .import-head h2 {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.s2a .import-facts div {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.s2a .import-facts dt {
+  color: var(--muted-strong);
+}
+
+.s2a .import-warnings {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--warn);
+}
+
+.s2a .import-error {
+  color: #b42318;
+  font-size: 14px;
+}
+
+.s2a .import-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+}

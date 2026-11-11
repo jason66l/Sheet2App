@@ -5,9 +5,11 @@ const MAX_BYTES = 25 * 1024 * 1024; // matches the import limit in the design do
 type Props = {
   /** Called when the user confirms a valid .xlsx file. Wire this to POST /imports. */
   onUpload: (file: File) => void;
+  /** Label for the continue button, e.g. "Continue with Google" when signed out. */
+  continueLabel?: string;
 };
 
-export default function UploadDrop({ onUpload }: Props) {
+export default function UploadDrop({ onUpload, continueLabel = 'Continue with Google' }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -52,7 +54,7 @@ export default function UploadDrop({ onUpload }: Props) {
         </div>
         <div className="drop-actions">
           <button type="button" className="btn btn-primary" onClick={() => onUpload(file)}>
-            Continue with Google
+            {continueLabel}
           </button>
           <button type="button" className="text-button" onClick={reset}>
             Choose a different file

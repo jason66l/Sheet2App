@@ -272,6 +272,29 @@
   color: var(--ink);
 }
 
+.s2a button.nav-signin {
+  padding: 8px 0;
+  background: none;
+  border: 0;
+  font-family: var(--font);
+  cursor: pointer;
+}
+
+.s2a .nav-user {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--muted-strong);
+}
+
+@media (max-width: 640px) {
+  .s2a .nav-user {
+    display: none;
+  }
+}
+
 /* ---------- Hero ---------- */
 
 .s2a .hero {

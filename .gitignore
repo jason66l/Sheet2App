@@ -17,4 +17,4 @@ __pycache__/
 
 # Frontend (also covered by frontend/.gitignore)
 node_modules/
-dist/
+dist/.cache/

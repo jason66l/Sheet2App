@@ -73,8 +73,16 @@ def test_extra_keys_rejected():
     _break(m)
 
 
-def test_stubs_return_contract_types():
-    res = core.run_import(b"fake xlsx")
+def test_stubs_return_contract_types(monkeypatch):
+    # run_import is real now: give it the sample file and a fake AI answer (no network).
+    from pathlib import Path
+
+    from backend.core.ai import propose
+
+    root = Path(__file__).resolve().parents[1]
+    fixture = json.loads((root / "fixtures" / "event_budget.json").read_text())
+    monkeypatch.setattr(propose, "generate_json", lambda *a: fixture)
+    res = core.run_import((root / "samples" / "Event_Budget_2026.xlsx").read_bytes())
     assert res.proposal.name == "Spring Showcase Budget"
     spec = res.proposal
     rec = Record(id="r1", entity="Expense", data={"amount": "240"}, state="submitted")

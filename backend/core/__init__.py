@@ -7,16 +7,17 @@ week noted, keeping the same signature.
 
 from __future__ import annotations
 
-import hashlib
 import json
+import logging
 from pathlib import Path
 
 from backend.core.contracts import (
-    ComputeResult, EditProposal, ImportResult, Reconciliation, Record, SheetDigest, User,
+    ComputeResult, EditProposal, ImportResult, Reconciliation, Record, User,
 )
 from backend.spec.models import AppSpec
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
+log = logging.getLogger("sheet2app.core")
 
 
 def load_fixture(name: str) -> AppSpec:
@@ -24,12 +25,46 @@ def load_fixture(name: str) -> AppSpec:
 
 
 def run_import(file_bytes: bytes) -> ImportResult:
-    """Real version: weeks 2-5 (parse -> digest -> propose), reconciliation weeks 6-8."""
+    """Spreadsheet -> parse -> digest -> Gemini proposes an AppSpec -> rows mapped onto it.
+
+    Reconciliation (recomputing every formula and comparing to Excel) lands in weeks 6-8;
+    until then it reports how many formula cells were found, with 0 translated.
+
+    If anything in the AI step fails, falls back to the event_budget fixture with a
+    warning, so a demo never ends on an error screen.
+    """
+    # Imported here so the stubs below still work without the google-genai package installed.
+    from backend.core import cache
+    from backend.core.ai.propose import propose_spec
+    from backend.core.digest import make_digest
+    from backend.core.parse import parse_workbook
+    from backend.core.rows import rows_for_entities
+
+    try:
+        parsed = parse_workbook(file_bytes)
+    except Exception as exc:  # not a readable .xlsx
+        raise ValueError(f"Could not read this spreadsheet: {exc}") from exc
+
+    digest = make_digest(parsed, file_bytes)
+    reconciliation = Reconciliation(formulas_total=parsed.formula_cells, formulas_translated=0, matched=0)
+    warnings = ["Totals check against your file is not built yet (weeks 6-8)."]
+
+    proposal = cache.get(digest.workbook_sha256)  # only when PROPOSAL_CACHE=1
+    if proposal is None:
+        try:
+            proposal = propose_spec(digest)
+            cache.put(digest.workbook_sha256, proposal)
+        except Exception as exc:  # noqa: BLE001 - any AI failure falls back to the fixture
+            log.exception("AI proposal failed; falling back to fixture")
+            proposal = load_fixture("event_budget")
+            warnings.insert(0, f"AI step failed, showing the sample app instead: {str(exc)[:200]}")
+
     return ImportResult(
-        digest=SheetDigest(workbook_sha256=hashlib.sha256(file_bytes).hexdigest(), sheets=[]),
-        proposal=load_fixture("event_budget"),
-        reconciliation=Reconciliation(formulas_total=29, formulas_translated=29, matched=29),
-        warnings=["stub: returning fixtures/event_budget.json"],
+        digest=digest,
+        proposal=proposal,
+        reconciliation=reconciliation,
+        rows=rows_for_entities(proposal, parsed),
+        warnings=warnings,
     )
 
 

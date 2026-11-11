@@ -7,7 +7,13 @@ import { BUDGET_LINES, PENDING_REQUESTS, WARNING_THRESHOLD, money, percent, rema
 type Props = {
   /** Called with the chosen .xlsx when the visitor continues. Wire to sign-in + POST /imports. */
   onUpload?: (file: File) => void;
+  /** Signed-in user's email, or null when signed out. */
+  userEmail?: string | null;
+  onSignIn?: () => void;
+  onSignOut?: () => void;
 };
+
+type AuthProps = Pick<Props, 'userEmail' | 'onSignIn' | 'onSignOut'>;
 
 const Arrow = () => (
   <svg className="arrow" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -34,7 +40,7 @@ function Logo() {
   );
 }
 
-function Nav() {
+function Nav({ userEmail, onSignIn, onSignOut }: AuthProps) {
   return (
     <header className="nav">
       <div className="container nav-inner">
@@ -46,9 +52,20 @@ function Nav() {
           <a href="#who">Who it's for</a>
         </nav>
         <div className="nav-actions">
-          <a href="#signin" className="nav-signin">
-            Sign in
-          </a>
+          {userEmail ? (
+            <>
+              <span className="nav-user" title={userEmail}>
+                {userEmail}
+              </span>
+              <button type="button" className="nav-signin" onClick={onSignOut}>
+                Sign out
+              </button>
+            </>
+          ) : onSignIn ? (
+            <button type="button" className="nav-signin" onClick={onSignIn}>
+              Sign in
+            </button>
+          ) : null}
           <a href="#upload" className="btn btn-primary btn-sm">
             Upload a spreadsheet
           </a>
@@ -496,7 +513,7 @@ function Audience() {
 
 /* ---------- Upload CTA ---------- */
 
-function UploadCta({ onUpload }: Required<Props>) {
+function UploadCta({ onUpload, needsSignIn }: { onUpload: (file: File) => void; needsSignIn: boolean }) {
   return (
     <section id="upload" className="section cta" aria-labelledby="upload-title">
       <div className="container cta-inner">
@@ -504,7 +521,7 @@ function UploadCta({ onUpload }: Required<Props>) {
           <h2 id="upload-title">Start with the file you already have.</h2>
           <p>Upload it to see your app. You'll sign in with Google before anything is saved or shared.</p>
         </div>
-        <UploadDrop onUpload={onUpload} />
+        <UploadDrop onUpload={onUpload} continueLabel={needsSignIn ? 'Continue with Google' : 'Build my app'} />
       </div>
     </section>
   );
@@ -525,13 +542,18 @@ function Footer() {
   );
 }
 
-export default function Landing({ onUpload = (f) => console.info('Upload selected:', f.name) }: Props) {
+export default function Landing({
+  onUpload = (f) => console.info('Upload selected:', f.name),
+  userEmail = null,
+  onSignIn,
+  onSignOut,
+}: Props) {
   return (
     <div className="s2a" id="top">
       <a href="#main" className="skip-link">
         Skip to content
       </a>
-      <Nav />
+      <Nav userEmail={userEmail} onSignIn={onSignIn} onSignOut={onSignOut} />
       <main id="main">
         <Hero />
         <HowItWorks />
@@ -539,7 +561,7 @@ export default function Landing({ onUpload = (f) => console.info('Upload selecte
         <DemoSection />
         <Trust />
         <Audience />
-        <UploadCta onUpload={onUpload} />
+        <UploadCta onUpload={onUpload} needsSignIn={!userEmail && Boolean(onSignIn)} />
       </main>
       <Footer />
     </div>

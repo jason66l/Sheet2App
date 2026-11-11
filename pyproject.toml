@@ -8,6 +8,16 @@ dependencies = [
   "pandas>=2.2",
   "google-genai>=1.0",
   "python-dotenv>=1.0",
+  # API + Supabase (Person B)
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "python-multipart>=0.0.9",
+  "sqlalchemy>=2.0",
+  "psycopg[binary]>=3.2",
+  "alembic>=1.13",
+  "pyjwt[crypto]>=2.9",
+  "supabase>=2.10",
+  "openai>=3.49.0",
 ]
 
 [dependency-groups]
