@@ -26,6 +26,18 @@ every calculation and approval. The LLM never computes money or decides approval
 - `uv sync` install; `uv run pytest` test; `uv run python -m scripts.export_schema` after
   any change to models.py (then tell Julian to send the schema to Jason).
 - `uv run python -m scripts.check_gemini` - checks Gemini accepts the schema (sends fake data only).
+- `uv run uvicorn backend.app.main:app --reload` - run the API on :8000 (needs `.env`, see `.env.example`).
+- `uv run alembic upgrade head` - apply database migrations to Supabase. After changing
+  `backend/app/tables.py`: `uv run alembic revision --autogenerate -m "..."`, review the file, then upgrade.
+- `cd frontend && npm run dev` - run the site on :5173 (needs `frontend/.env.local`).
+
+## Supabase (Jason)
+- Supabase provides Google sign-in, Postgres and file storage. The frontend uses it only to sign in;
+  all data goes through FastAPI (`backend/app/`), which checks the login token in `backend/app/auth.py`.
+- Keys: publishable key (`sb_publishable_`) in `frontend/.env.local`; secret key (`sb_secret_`) and
+  `DATABASE_URL` only in the root `.env`. Never commit either file.
+- Every table has Row Level Security on with no policies, so the public Supabase API can't read them.
+  Keep it that way for new tables.
 
 ## Rules
 - Money is `Decimal`, never float. Convert at the moment a value is read.
@@ -38,9 +50,10 @@ every calculation and approval. The LLM never computes money or decides approval
 ## How Julian wants to work (learning mode)
 Julian is a data science student who wants to learn from this project, not just finish it.
 - Before writing non-trivial code, propose a short plan and wait for a go-ahead.
-- Julian writes the core logic himself: the formula evaluator (`core/engine/evaluate.py`) and the
-  approval engine (`core/engine/workflow.py`). For those, give hints, review his code and write
-  tests, but don't write the implementation unless he asks.
+- Julian writes the approval engine (`core/engine/workflow.py`) himself. For that, give hints,
+  review his code and write tests, but don't write the implementation unless he asks.
+- The formula evaluator (`core/engine/evaluate.py`) was written by Claude with Julian's OK
+  (Nov 10). He owns it now: changes to it go through him.
 - Do boilerplate, config and setup freely.
 - After each change, explain what changed and why in plain language. Point out one concept worth
   learning when there is one (e.g. why Decimal, what a state machine is).

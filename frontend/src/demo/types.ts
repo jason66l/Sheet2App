@@ -21,15 +21,43 @@ export type View = KpiView | BudgetTableView | RecordTableView | FormView | Appr
 
 export type AppSpec = { name: string; description?: string | null; entities: Entity[]; approval_rule?: ApprovalRule | null; views: View[] };
 
-export type Row = Record<string, unknown> & { __state__?: string; __approved_by__?: string[] };
+/** One logged change to a budget line's amount (saved apps). */
+export type FundEntry = { amount: string; note: string; by: string; at: string };
+
+export type Row = Record<string, unknown> & {
+  __state__?: string;
+  __funds__?: FundEntry[];
+  __approved_by__?: string[];
+  /** Saved apps only: record id, whether I created it, and why I can't approve it (null = I can). */
+  __id__?: string;
+  __mine__?: boolean;
+  __blocked__?: string | null;
+};
+
+export type Role = 'admin' | 'approver' | 'submitter';
 
 export type DemoResponse = {
   file_name: string;
   seconds: number;
-  source: 'ai' | 'cache' | 'fallback';
+  source: 'ai' | 'cache' | 'fallback' | 'saved';
   model?: string;
   spec: AppSpec;
   rows: Record<string, Row[]>;
   kpis: Record<string, string | null>;
   warnings: string[];
 };
+
+/** GET /apps/{id}/view (backend/app/routes/apps.py). */
+export type AppView = {
+  app_id: string;
+  role: Role;
+  file_name: string;
+  created_at: string;
+  spec: AppSpec;
+  rows: Record<string, Row[]>;
+  kpis: Record<string, string | null>;
+};
+
+export type MyApp = { id: string; name: string; role: Role; created_at: string };
+export type Me = { id: string; email: string | null; name: string | null; apps: MyApp[] };
+export type Member = { id: string; name: string | null; email: string | null; role: Role };

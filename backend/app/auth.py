@@ -8,6 +8,7 @@ the signature against those public keys, so the backend stores no auth secret.
 
 from __future__ import annotations
 
+import ssl
 from functools import lru_cache
 
 import jwt
@@ -26,10 +27,25 @@ class AuthUser(BaseModel):
     name: str | None = None
 
 
+def _ssl_context() -> ssl.SSLContext:
+    # Python from uv/python.org on macOS doesn't see the system certificates,
+    # so use certifi's bundle (installed with httpx/supabase) when available.
+    try:
+        import certifi
+
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        return ssl.create_default_context()
+
+
 @lru_cache
 def _jwks_client() -> jwt.PyJWKClient:
     # Public keys are fetched once and cached by PyJWKClient.
-    return jwt.PyJWKClient(f"{get_settings().auth_issuer}/.well-known/jwks.json", cache_keys=True)
+    return jwt.PyJWKClient(
+        f"{get_settings().auth_issuer}/.well-known/jwks.json",
+        cache_keys=True,
+        ssl_context=_ssl_context(),
+    )
 
 
 def verify_token(token: str) -> AuthUser:

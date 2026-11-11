@@ -23,7 +23,12 @@ export async function api<T = unknown>(path: string, init: RequestInit = {}): Pr
     headers.set('Content-Type', 'application/json');
   }
 
-  const res = await fetch(`${API_URL}${path}`, { ...init, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, { ...init, headers });
+  } catch {
+    throw new ApiError(0, `Can't reach the server at ${API_URL}. Is the backend running?`);
+  }
   if (!res.ok) {
     let message = res.statusText;
     try {

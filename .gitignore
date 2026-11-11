@@ -17,4 +17,6 @@ __pycache__/
 
 # Frontend (also covered by frontend/.gitignore)
 node_modules/
-dist/.cache/
+dist/
+# Saved AI designs (PROPOSAL_CACHE=1)
+.cache/

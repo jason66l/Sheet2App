@@ -43,7 +43,7 @@ def me(user: AuthUser = Depends(current_user), db: Session = Depends(get_db)) ->
     """Who am I, and which apps can I open? Also creates my profile on first sign-in."""
     upsert_profile(db, user)
     rows = db.execute(
-        select(tables.App.id, tables.App.name, tables.Membership.role)
+        select(tables.App.id, tables.App.name, tables.App.created_at, tables.Membership.role)
         .join(tables.Membership, tables.Membership.app_id == tables.App.id)
         .where(tables.Membership.user_id == uuid.UUID(user.id))
         .order_by(tables.App.created_at.desc())
@@ -52,5 +52,7 @@ def me(user: AuthUser = Depends(current_user), db: Session = Depends(get_db)) ->
         "id": user.id,
         "email": user.email,
         "name": user.name,
-        "apps": [{"id": str(r.id), "name": r.name, "role": r.role} for r in rows],
+        "apps": [
+            {"id": str(r.id), "name": r.name, "role": r.role, "created_at": r.created_at.isoformat()} for r in rows
+        ],
     }
