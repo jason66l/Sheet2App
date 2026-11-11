@@ -18,6 +18,8 @@ from backend.app.config import get_settings
 from backend.app.db import get_db
 from backend.app.profiles import upsert_profile
 from backend.core import run_import
+from backend.core.demo_values import display_rows
+from backend.core.parse import parse_workbook
 
 router = APIRouter(prefix="/imports", tags=["imports"])
 
@@ -43,15 +45,16 @@ def _own_import(db: Session, import_id: uuid.UUID, user: AuthUser) -> tables.Imp
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-async def create_import(
+def create_import(
     file: UploadFile,
     user: AuthUser = Depends(current_user),
     db: Session = Depends(get_db),
 ) -> dict:
+    # Plain `def`: FastAPI runs it in a worker thread, so the slow AI call doesn't block other requests.
     name = file.filename or "upload.xlsx"
     if not name.lower().endswith(".xlsx"):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Please upload an Excel .xlsx file")
-    data = await file.read()
+    data = file.file.read()
     if len(data) > get_settings().max_upload_bytes:
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "File is over 25 MB")
 
@@ -73,14 +76,18 @@ async def create_import(
         result = run_import(data)
     except Exception as exc:  # noqa: BLE001 - report any failure back to the user
         imp.status, imp.error = "failed", str(exc)
+        db.commit()
         return _summary(imp)
 
     imp.status = "ready"
     imp.digest = result.digest.model_dump(mode="json")
     imp.proposal = result.proposal.model_dump(mode="json")
     imp.reconciliation = result.reconciliation.model_dump(mode="json")
-    imp.rows = result.model_dump(mode="json")["rows"]
+    # Field values plus the values Excel saved for computed columns (shown until the
+    # formula engine recomputes them), plus __state__ / __approved_by__ markers.
+    imp.rows = display_rows(result.proposal, parse_workbook(data))
     imp.warnings = result.warnings
+    db.commit()  # save before replying: the browser confirms it right after this
     return _summary(imp)
 
 
@@ -111,10 +118,13 @@ def confirm_import(import_id: uuid.UUID, user: AuthUser = Depends(current_user),
             approved_by = data.pop("__approved_by__", None)  # names from "Approved by"
             if approved_by:
                 data["_imported_approved_by"] = approved_by
-            db.add(tables.Record(app_id=new_app.id, entity=entity, data=data, state=state, created_by=owner))
+            # created_by stays empty: imported rows were submitted by the people named in the sheet,
+            # not by the uploader (who must still be able to approve them).
+            db.add(tables.Record(app_id=new_app.id, entity=entity, data=data, state=state, created_by=None))
             count += 1
-    # TODO: turn _imported_approved_by names into approvals rows once members can be matched
-    # to profiles (docs/contract-notes.md, item 4).
+    # Imported "Approved by" names stay in data["_imported_approved_by"] and count toward the
+    # approvals needed. TODO: match them to member profiles (docs/contract-notes.md, item 4).
 
     imp.app_id = new_app.id
+    db.commit()  # save before replying: the browser opens the app right after this
     return {"app_id": str(new_app.id), "records_imported": count}

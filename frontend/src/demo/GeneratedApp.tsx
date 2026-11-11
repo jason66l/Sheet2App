@@ -1,26 +1,44 @@
 import '../landing/landing.css';
 import './demo.css';
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import type {
-  ApprovalQueueView, AppSpec, BudgetTableView, DemoResponse, Entity, FormView, KpiView, RecordTableView, Row, View,
+  ApprovalQueueView, AppSpec, BudgetTableView, DemoResponse, Entity, FormView, KpiView, RecordTableView, Role, Row, View,
 } from './types';
 import { STATE_LABEL, cell, column, money, num, percent } from './format';
 
 type Rows = Record<string, Row[]>;
 
+/** Saved apps pass these; each call saves on the server, then the page reloads the data. */
+export type AppActions = {
+  approve: (recordId: string) => Promise<void>;
+  reject: (recordId: string) => Promise<void>;
+  create: (entity: string, data: Record<string, string>) => Promise<void>;
+};
+
 type Props = {
   data: DemoResponse;
   onBack: () => void;
+  backLabel?: string;
+  /** Saved app: my role, server actions, and extra blocks (e.g. People) shown under the app. */
+  role?: Role;
+  actions?: AppActions;
+  extra?: ReactNode;
+  headerRight?: ReactNode;
 };
+
+const ROLE_LABEL: Record<Role, string> = { admin: 'Admin', approver: 'Approver', submitter: 'Submitter' };
 
 /**
  * Renders any generated app from its AppSpec. Nothing here knows about budgets
  * or clubs: every table, column, rule and form comes from data.spec.
  * Approvals and new expenses change local state only (demo; nothing is saved).
  */
-export default function GeneratedApp({ data, onBack }: Props) {
+export default function GeneratedApp({ data, onBack, backLabel = 'New upload', role, actions, extra, headerRight }: Props) {
   const { spec } = data;
-  const [rows, setRows] = useState<Rows>(data.rows);
+  const [localRows, setRows] = useState<Rows>(data.rows);
+  const [error, setError] = useState<string | null>(null);
+  // Saved apps always show the server's rows; the demo keeps its own local copy.
+  const rows = actions ? data.rows : localRows;
   const entity = (name: string) => spec.entities.find((e) => e.name === name);
 
   const updateRow = (entityName: string, index: number, patch: Partial<Row>) =>
@@ -30,9 +48,21 @@ export default function GeneratedApp({ data, onBack }: Props) {
     setRows((r) => ({ ...r, [entityName]: [...(r[entityName] ?? []), row] }));
 
   const sourceLabel =
-    data.source === 'fallback'
-      ? 'Sample app (AI step failed)'
-      : `Designed by ${data.model ?? 'AI'}${data.source === 'cache' ? ' · saved result' : ''}`;
+    data.source === 'saved'
+      ? 'Saved app, created'
+      : data.source === 'fallback'
+        ? 'Sample app (AI step failed)'
+        : `Designed by ${data.model ?? 'AI'}${data.source === 'cache' ? ' · saved result' : ''}`;
+
+  /** Run a server action and show its error (e.g. "You can't approve your own request"). */
+  const run = async (fn: () => Promise<void>) => {
+    setError(null);
+    try {
+      await fn();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   return (
     <div className="s2a gen">
@@ -47,9 +77,13 @@ export default function GeneratedApp({ data, onBack }: Props) {
               {spec.description && <p>{spec.description}</p>}
             </div>
           </div>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={onBack}>
-            New upload
-          </button>
+          <div className="gen-bar-actions">
+            {role && <span className={`gen-role gen-role-${role}`}>{ROLE_LABEL[role]}</span>}
+            {headerRight}
+            <button type="button" className="btn btn-secondary btn-sm" onClick={onBack}>
+              {backLabel}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -63,10 +97,23 @@ export default function GeneratedApp({ data, onBack }: Props) {
           </span>
         </p>
 
+        {error && (
+          <p className="gen-alert" role="alert">
+            {error}
+            <button type="button" className="text-button" onClick={() => setError(null)}>
+              Dismiss
+            </button>
+          </p>
+        )}
+
         <main className="gen-grid">
           {spec.views.map((view) => (
-            <ViewBlock key={view.id} view={view} spec={spec} data={data} rows={rows} entity={entity} updateRow={updateRow} addRow={addRow} />
+            <ViewBlock
+              key={view.id} view={view} spec={spec} data={data} rows={rows} entity={entity}
+              updateRow={updateRow} addRow={addRow} role={role} actions={actions} run={run}
+            />
           ))}
+          {extra}
         </main>
       </div>
     </div>
@@ -90,6 +137,9 @@ type BlockProps = {
   entity: (name: string) => Entity | undefined;
   updateRow: (entity: string, index: number, patch: Partial<Row>) => void;
   addRow: (entity: string, row: Row) => void;
+  role?: Role;
+  actions?: AppActions;
+  run: (fn: () => Promise<void>) => Promise<void>;
 };
 
 function ViewBlock(props: BlockProps) {
@@ -192,7 +242,7 @@ function BudgetTable({ view, rows, entity }: BlockProps & { view: BudgetTableVie
 
 /* ----------------------------------------------------------- approval queue */
 
-function ApprovalQueue({ view, spec, rows, entity, updateRow }: BlockProps & { view: ApprovalQueueView }) {
+function ApprovalQueue({ view, spec, rows, entity, updateRow, role, actions, run }: BlockProps & { view: ApprovalQueueView }) {
   const ent = entity(view.entity);
   if (!ent) return null;
   const rule = spec.approval_rule?.entity === view.entity ? spec.approval_rule : null;
@@ -200,7 +250,9 @@ function ApprovalQueue({ view, spec, rows, entity, updateRow }: BlockProps & { v
   const who = ent.fields.find((f) => f.type === 'user')?.name;
   const pending = (rows[view.entity] ?? []).map((r, i) => ({ r, i })).filter(({ r }) => r.__state__ === 'submitted');
 
+  const canApprove = !role || role === 'admin' || role === 'approver';
   const approve = (i: number, r: Row) => {
+    if (actions && r.__id__) return void run(() => actions.approve(r.__id__ as string));
     const given = [...(r.__approved_by__ ?? []), 'You'];
     const needed = required(r);
     updateRow(view.entity, i, { __approved_by__: given, ...(given.length >= needed ? { __state__: 'approved' } : {}) });
@@ -244,14 +296,28 @@ function ApprovalQueue({ view, spec, rows, entity, updateRow }: BlockProps & { v
                     {given} of {needed} {needed === 1 ? 'approval' : 'approvals'}{given ? ` · ${(r.__approved_by__ ?? []).join(', ')}` : ''}
                   </span>
                 </div>
-                <div className="gen-queue-actions">
-                  <button type="button" className="btn btn-primary btn-sm" onClick={() => approve(i, r)}>
-                    Approve
-                  </button>
-                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => updateRow(view.entity, i, { __state__: 'rejected' })}>
-                    Reject
-                  </button>
-                </div>
+                {canApprove && !r.__blocked__ ? (
+                  <div className="gen-queue-actions">
+                    <button type="button" className="btn btn-primary btn-sm" onClick={() => approve(i, r)}>
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() =>
+                        actions && r.__id__
+                          ? void run(() => actions.reject(r.__id__ as string))
+                          : updateRow(view.entity, i, { __state__: 'rejected' })
+                      }
+                    >
+                      Reject
+                    </button>
+                  </div>
+                ) : (
+                  <p className="gen-blocked">
+                    {r.__mine__ ? 'Your request. Someone else has to approve it.' : (r.__blocked__ ?? 'Only approvers and admins can approve.')}
+                  </p>
+                )}
               </li>
             );
           })}
@@ -315,15 +381,27 @@ function RecordTable({ view, rows, entity }: BlockProps & { view: RecordTableVie
 
 /* --------------------------------------------------------------------- form */
 
-function EntityForm({ view, rows, entity, addRow }: BlockProps & { view: FormView }) {
+function EntityForm({ view, rows, entity, addRow, actions, run }: BlockProps & { view: FormView }) {
   const ent = entity(view.entity);
   const [values, setValues] = useState<Record<string, string>>({});
   const [done, setDone] = useState(false);
   const fields = useMemo(() => (ent ? view.fields.map((n) => ent.fields.find((f) => f.name === n)).filter(Boolean) : []), [ent, view.fields]);
   if (!ent) return null;
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (actions) {
+      let ok = false;
+      await run(async () => {
+        await actions.create(view.entity, values);
+        ok = true;
+      });
+      if (ok) {
+        setValues({});
+        setDone(true);
+      }
+      return;
+    }
     const row: Row = { ...values, __state__: ent.workflow ? 'submitted' : undefined, __approved_by__: [] };
     const who = ent.fields.find((f) => f.type === 'user');
     if (who && !row[who.name]) row[who.name] = 'You';

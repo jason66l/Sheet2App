@@ -26,6 +26,18 @@ every calculation and approval. The LLM never computes money or decides approval
 - `uv sync` install; `uv run pytest` test; `uv run python -m scripts.export_schema` after
   any change to models.py (then tell Julian to send the schema to Jason).
 - `uv run python -m scripts.check_gemini` - checks Gemini accepts the schema (sends fake data only).
+- `uv run uvicorn backend.app.main:app --reload` - run the API on :8000 (needs `.env`, see `.env.example`).
+- `uv run alembic upgrade head` - apply database migrations to Supabase. After changing
+  `backend/app/tables.py`: `uv run alembic revision --autogenerate -m "..."`, review the file, then upgrade.
+- `cd frontend && npm run dev` - run the site on :5173 (needs `frontend/.env.local`).
+
+## Supabase (Jason)
+- Supabase provides Google sign-in, Postgres and file storage. The frontend uses it only to sign in;
+  all data goes through FastAPI (`backend/app/`), which checks the login token in `backend/app/auth.py`.
+- Keys: publishable key (`sb_publishable_`) in `frontend/.env.local`; secret key (`sb_secret_`) and
+  `DATABASE_URL` only in the root `.env`. Never commit either file.
+- Every table has Row Level Security on with no policies, so the public Supabase API can't read them.
+  Keep it that way for new tables.
 
 ## Rules
 - Money is `Decimal`, never float. Convert at the moment a value is read.

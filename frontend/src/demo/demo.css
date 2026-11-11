@@ -457,3 +457,197 @@
     border-top: 0;
   }
 }
+
+/* ---- saved apps: roles, alerts, people ---- */
+
+.s2a .gen-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.s2a .gen-role {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--subtle);
+  color: var(--ink-2);
+  border: 1px solid var(--border);
+}
+
+.s2a .gen-role-admin {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: transparent;
+}
+
+.s2a .gen-alert {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border: 1px solid #f3c9c4;
+  background: #fdf3f2;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #8f1d14;
+}
+
+.s2a .gen-blocked {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--muted-strong);
+}
+
+.s2a .gen-people li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-top: 1px solid #f0f1f3;
+  font-size: 14px;
+}
+
+.s2a .gen-people li:first-child {
+  border-top: 0;
+}
+
+.s2a .gen-people .muted {
+  display: block;
+  font-size: 12px;
+}
+
+.s2a .gen-people select,
+.s2a .gen-invite select {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font: 13px var(--font);
+}
+
+.s2a .gen-invite {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 14px;
+}
+
+.s2a .gen-invite-link {
+  flex: 1 1 260px;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font: 12px var(--mono);
+  color: var(--ink);
+}
+
+/* ---- dashboard ---- */
+
+.s2a .dash {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: 32px;
+  align-items: start;
+  padding-top: 40px;
+  padding-bottom: 80px;
+}
+
+.s2a .dash h2 {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-bottom: 16px;
+}
+
+.s2a .dash-apps {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.s2a .dash-apps a {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 16px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  transition: background-color 0.15s ease;
+}
+
+.s2a .dash-apps a:first-child {
+  border-top: 0;
+}
+
+.s2a .dash-apps a:hover {
+  background: #fbfbfa;
+}
+
+.s2a .dash-app-name {
+  font-weight: 600;
+}
+
+.s2a .dash-app-meta {
+  grid-column: 1;
+  font-size: 12px;
+  color: var(--muted-strong);
+}
+
+.s2a .dash-app-role {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  align-self: center;
+}
+
+.s2a .dash-empty {
+  padding: 28px 20px;
+  font-size: 14px;
+  color: var(--muted-strong);
+}
+
+.s2a .dash-side p {
+  margin: -6px 0 16px;
+  font-size: 14px;
+  color: var(--muted-strong);
+}
+
+.s2a.center-page {
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.s2a.center-page h1 {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.s2a.center-page p {
+  margin: 10px 0 20px;
+  color: var(--muted-strong);
+}
+
+@media (max-width: 900px) {
+  .s2a .dash {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
